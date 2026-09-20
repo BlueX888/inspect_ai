@@ -1,6 +1,9 @@
 """Tests for Google GenAI model API conversion functions."""
 
+import base64
+
 from google.genai.types import (
+    Blob,
     Candidate,
     Content,
     ContentDict,
@@ -12,7 +15,11 @@ from google.genai.types import (
     Part,
 )
 
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.model import (
     messages_from_google,
     model_output_from_google,
@@ -600,3 +607,80 @@ async def test_messages_from_google_multiple_tool_responses_in_user() -> None:
     assert isinstance(result[2], ChatMessageUser)
     assert isinstance(result[3], ChatMessageTool)
     assert result[3].function == "tool2"
+
+
+async def test_messages_from_google_inline_data_binary_image() -> None:
+    """Test Content with an inline_data image part carrying raw binary bytes."""
+    image_bytes = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
+
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(inline_data=Blob(mime_type="image/png", data=image_bytes)),
+                Part(text="what is in this image?"),
+            ],
+        ),
+    ]
+
+    result = await messages_from_google(contents)
+
+    assert len(result) == 1
+    message = result[0]
+    assert isinstance(message, ChatMessageUser)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 2
+    assert isinstance(message.content[0], ContentImage)
+    assert message.content[0].image == (
+        f"data:image/png;base64,{base64.b64encode(image_bytes).decode()}"
+    )
+    assert isinstance(message.content[1], ContentText)
+    assert message.content[1].text == "what is in this image?"
+
+
+async def test_messages_from_google_inline_data_empty_bytes() -> None:
+    """Test that an inline_data part with empty bytes is not dropped."""
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(inline_data=Blob(mime_type="image/png", data=b"")),
+            ],
+        ),
+    ]
+
+    result = await messages_from_google(contents)
+
+    assert len(result) == 1
+    message = result[0]
+    assert isinstance(message, ChatMessageUser)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    assert isinstance(message.content[0], ContentImage)
+    assert message.content[0].image == "data:image/png;base64,"
+
+
+async def test_messages_from_google_inline_data_missing_mime_type() -> None:
+    """Test that an inline_data part without a mime_type is not dropped."""
+    image_bytes = b"\x89PNG\r\n\x1a\n\x00\x01\x02image-bytes\xff\xfe"
+
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part(inline_data=Blob(mime_type=None, data=image_bytes)),
+            ],
+        ),
+    ]
+
+    result = await messages_from_google(contents)
+
+    assert len(result) == 1
+    message = result[0]
+    assert isinstance(message, ChatMessageUser)
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    assert isinstance(message.content[0], ContentImage)
+    assert message.content[0].image == (
+        f"data:image/png;base64,{base64.b64encode(image_bytes).decode()}"
+    )

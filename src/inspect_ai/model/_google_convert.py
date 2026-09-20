@@ -241,12 +241,12 @@ async def content_from_google_parts(
                 )
 
         # Handle inline data (images)
-        elif part.inline_data and part.inline_data.mime_type and part.inline_data.data:
+        elif part.inline_data is not None and part.inline_data.data is not None:
             content.append(
                 ContentImage(
                     image=as_data_uri(
-                        part.inline_data.mime_type,
-                        part.inline_data.data.decode("utf-8"),
+                        part.inline_data.mime_type or "image/png",
+                        base64.b64encode(part.inline_data.data).decode(),
                     )
                 )
             )
