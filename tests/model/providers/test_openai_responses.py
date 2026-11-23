@@ -2611,6 +2611,55 @@ def test_visible_cot_encrypted_content_survives_bridge_round_trip():
     assert reasoning_items[0]["encrypted_content"] == blob
 
 
+def test_simple_assistant_output_text_without_message_type_is_read():
+    """Vercel AI SDK sends assistant text as output_text with no message type."""
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+
+    messages = messages_from_responses_input(
+        [
+            {"role": "user", "content": "What is the capital of France?"},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "output_text", "text": "The capital of France is Paris."}
+                ],
+            },
+        ],
+        tools=[],
+    )
+
+    assistant = messages[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert assistant.text == "The capital of France is Paris."
+
+
+def test_simple_assistant_output_text_before_tool_call_is_kept():
+    """Text survives when a type-less output_text message precedes a tool call."""
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+
+    messages = messages_from_responses_input(
+        [
+            {"role": "user", "content": "What is the weather?"},
+            {
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "Let me check."}],
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "get_weather",
+                "arguments": "{}",
+            },
+        ],
+        tools=[],
+    )
+
+    assistant = messages[-1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert assistant.text == "Let me check."
+    assert [call.function for call in assistant.tool_calls or []] == ["get_weather"]
+
+
 # -- Stream observer reporting (on_stream) -------------------------------------
 
 

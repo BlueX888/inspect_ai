@@ -1075,10 +1075,13 @@ def messages_from_responses_input(
                     else:
                         param_content = param["content"]
                     for c in param_content:
-                        if c["type"] == "input_text":
+                        # scaffolds such as the Vercel AI SDK send assistant
+                        # text as output_text parts on a type-less message
+                        part = cast(dict[str, Any], c)
+                        if part["type"] in ("input_text", "output_text"):
                             asst_content, content_internal = (
                                 parse_content_with_internal(
-                                    c["text"], CONTENT_INTERNAL_TAG
+                                    part["text"], CONTENT_INTERNAL_TAG
                                 )
                             )
                             # Check for serialized <think> tags and restore as ContentReasoning
