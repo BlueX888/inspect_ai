@@ -2660,6 +2660,64 @@ def test_simple_assistant_output_text_before_tool_call_is_kept():
     assert [call.function for call in assistant.tool_calls or []] == ["get_weather"]
 
 
+def test_simple_assistant_refusal_without_message_type_is_kept():
+    """A type-less assistant refusal part is kept as a refusal, not dropped."""
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+
+    messages = messages_from_responses_input(
+        [
+            {"role": "user", "content": "Do something harmful."},
+            {
+                "role": "assistant",
+                "content": [{"type": "refusal", "refusal": "I can't help with that."}],
+            },
+        ],
+        tools=[],
+    )
+
+    assistant = messages[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert assistant.text == "I can't help with that."
+    assert isinstance(assistant.content, list)
+    refusals = [
+        c for c in assistant.content if isinstance(c, ContentText) and c.refusal
+    ]
+    assert len(refusals) == 1
+    assert refusals[0].text == "I can't help with that."
+
+
+def test_simple_assistant_output_text_and_refusal_are_both_kept():
+    """Mixed output_text and refusal parts in one type-less message survive."""
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+
+    messages = messages_from_responses_input(
+        [
+            {"role": "user", "content": "Do something harmful."},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "output_text", "text": "Here is my answer:"},
+                    {"type": "refusal", "refusal": "I can't help with that."},
+                ],
+            },
+        ],
+        tools=[],
+    )
+
+    assistant = messages[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert assistant.text == "Here is my answer:\nI can't help with that."
+    assert isinstance(assistant.content, list)
+    text_parts = [
+        c for c in assistant.content if isinstance(c, ContentText) and not c.refusal
+    ]
+    refusals = [
+        c for c in assistant.content if isinstance(c, ContentText) and c.refusal
+    ]
+    assert [c.text for c in text_parts] == ["Here is my answer:"]
+    assert [c.text for c in refusals] == ["I can't help with that."]
+
+
 # -- Stream observer reporting (on_stream) -------------------------------------
 
 

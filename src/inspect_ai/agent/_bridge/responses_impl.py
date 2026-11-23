@@ -1109,6 +1109,17 @@ def messages_from_responses_input(
                                         text=asst_content, internal=content_internal
                                     )
                                 )
+                        elif part["type"] == "refusal":
+                            _, content_internal = parse_content_with_internal(
+                                part["refusal"], CONTENT_INTERNAL_TAG
+                            )
+                            content.append(
+                                ContentText(
+                                    text=part["refusal"],
+                                    refusal=True,
+                                    internal=content_internal,
+                                )
+                            )
                         elif c["type"] == "input_image" and c["image_url"] is not None:
                             content.append(
                                 ContentImage(image=c["image_url"], detail=c["detail"])
